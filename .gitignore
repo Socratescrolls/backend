@@ -2,3 +2,45 @@
 # Ignore compiled Python files
 __pycache__/
 *.py[cod]
+
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Audio files
+*.mp3
+*.wav
+*.ogg
+*.m4a
+*.flac
+
+# Processed content
+*.txt
+processed/
+output/
+temp/
+
+# Binary/IO files
+*.io
+*.bytes
+ioBytes/
+
+# Environment variables
+.env
+.venv
+env/
+venv/
+ENV/
+
+# IDE specific files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS specific files
+.DS_Store
+Thumbs.db
