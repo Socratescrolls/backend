@@ -131,7 +131,11 @@ async def upload_file(
 
     try:
         # Use the external processing function!
-        process_document(file_path, processed_content_path)
+        contents = process_document(file_path)
+        
+        # Save the processed contents
+        with open(processed_content_path, 'w', encoding='utf-8') as f:
+            f.write('\n\n'.join(contents) if isinstance(contents, list) else contents)
 
         with open(processed_content_path, 'r', encoding='utf-8') as f:
             content = f.read()
