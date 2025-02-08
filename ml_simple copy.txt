@@ -1,0 +1,54 @@
+Page 1:
+Text content:
+
+# Introduction to Simple Machine Learning
+Machine Learning (ML) is a branch of artificial intelligence that enables computers to learn from data and make predictions or decisions without explicit programming. One of the simplest ML techniques is **Linear Regression**, which is widely used for predictive modeling.
+
+Linear regression is a **supervised learning algorithm** that models the relationship between a dependent variable (target) and one or more independent variables (features) using a straight line.
+
+---
+
+Page 2:
+Text content:
+
+# Understanding Linear Regression
+Linear regression assumes a linear relationship between the input variable (X) and the output variable (Y). The equation for a simple linear regression model is:
+
+Y = mX + b
+
+where:
+- Y is the predicted output,
+- X is the input feature,
+- m is the slope of the line (coefficient), and
+- b is the y-intercept.
+
+The goal is to find the best-fitting line that minimizes the error between predicted and actual values.
+
+---
+
+Page 3:
+Text content:
+
+# Training a Linear Regression Model
+The model is trained using a dataset containing input-output pairs. The **Least Squares Method** is commonly used to minimize the sum of squared differences between actual and predicted values.
+
+## Steps to Train:
+1. Collect and preprocess data.
+2. Split the dataset into training and testing sets.
+3. Use an optimization technique (e.g., gradient descent) to adjust m and b.
+4. Evaluate model performance using metrics like **Mean Squared Error (MSE)** and **R-squared score**.
+
+---
+
+Page 4:
+Text content:
+
+# Applications of Linear Regression
+Linear regression is widely used in various domains, including:
+- **Finance**: Stock price prediction
+- **Marketing**: Sales forecasting
+- **Healthcare**: Disease progression prediction
+- **Economics**: Demand-supply analysis
+
+Despite its simplicity, linear regression is a powerful tool for analyzing relationships between variables and making informed predictions. However, it assumes **linearity, no multicollinearity, and homoscedasticity**, which may limit its effectiveness in complex real-world scenarios.
+

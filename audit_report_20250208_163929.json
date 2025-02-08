@@ -1,0 +1,87 @@
+{
+  "report_metadata": {
+    "generated_at": "2025-02-08T16:39:29.389939",
+    "total_score": 24.7,
+    "performance_level": "Needs Improvement"
+  },
+  "performance_metrics": {
+    "quiz_performance": 0,
+    "engagement_quality": 76.0,
+    "concept_understanding": 0,
+    "progress_rate": 38.0
+  },
+  "learning_profile": {
+    "preferred_style": "analytical",
+    "effective_topics": [
+      "Linear regression and its applications",
+      "Least squares method"
+    ],
+    "attention_span": "sustained focus throughout the lecture"
+  },
+  "progress_analysis": {
+    "initial_level": 0.0,
+    "final_level": 10.0,
+    "key_improvements": [
+      "Able to accurately describe the core concept of linear regression.",
+      "Understood the application of the least squares method."
+    ],
+    "challenging_areas": []
+  },
+  "recommendations": {
+    "key_strengths": [
+      "Engagement quality is above average, indicating a willingness to participate.",
+      "Preferred learning style is analytical, which can be leveraged for deeper understanding."
+    ],
+    "improvement_areas": [
+      "Quiz performance is at 0, indicating a lack of understanding or preparation.",
+      "Concept understanding also at 0 suggests fundamental knowledge gaps.",
+      "Progress rate of 38% shows slow advancement through the course material."
+    ],
+    "action_items": [
+      "Review foundational concepts related to linear regression and least squares method to build a solid base.",
+      "Utilize analytical problem-solving exercises to reinforce understanding.",
+      "Schedule regular study sessions focusing on the most effective topics, possibly breaking them down into smaller, digestible sections.",
+      "Take practice quizzes to assess understanding after each topic and identify areas needing further review."
+    ],
+    "additional_resources": [
+      "Online courses or tutorials specific to linear regression and least squares, such as those on Khan Academy or Coursera.",
+      "Textbooks or e-books that cover fundamental statistics and regression analysis.",
+      "Join study groups or forums online (such as Reddit or Stack Overflow) where analytical methods are discussed."
+    ]
+  },
+  "visualization_data": {
+    "metrics": [
+      {
+        "name": "Quiz Performance",
+        "percentage": 0,
+        "weight": 0.35
+      },
+      {
+        "name": "Engagement Quality",
+        "percentage": 76.0,
+        "weight": 0.25
+      },
+      {
+        "name": "Concept Understanding",
+        "percentage": 0,
+        "weight": 0.25
+      },
+      {
+        "name": "Progress Rate",
+        "percentage": 38.0,
+        "weight": 0.15
+      }
+    ]
+  },
+  "session_metadata": {
+    "professor_name": "Andrew NG",
+    "profile": {
+      "style": "Focuses on practical applications and real-world examples. Breaks down complex ML concepts into digestible pieces. Often uses analogies and visual explanations.",
+      "background": "Expert in Machine Learning and AI. Known for making complex concepts accessible.",
+      "verification_style": "Uses step-by-step verification of understanding, often asking students to explain concepts back."
+    },
+    "start_time": "2025-02-08T16:38:51.223687",
+    "end_time": "2025-02-08T16:39:22.498437",
+    "duration": "0:00:31.275255"
+  }
+}
