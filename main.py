@@ -5,10 +5,13 @@ from langchain_openai import ChatOpenAI
 from langchain.schema import HumanMessage, SystemMessage
 import json
 import asyncio
+import difflib
+
 def setup_environment():
     """Setup and validate environment variables"""
     load_dotenv()
     os.environ["OPENAI_API_KEY"] = os.getenv("OPENAI_API_KEY2")
+
 PROFESSOR_PROFILES = {
     "Andrew NG": {
         "style": "Focuses on practical applications and real-world examples. Breaks down complex ML concepts into digestible pieces. Often uses analogies and visual explanations.",
@@ -48,6 +51,42 @@ class AIProfessor:
         self.current_page = 1
         self.max_pages = 1
         
+        # Track conversation history manually
+        self.conversation_history: List[Dict[str, Any]] = []
+        
+        # Track previous explanations to prevent repetition
+        self.previous_explanations: List[str] = []
+    
+    def add_to_conversation_history(self, role: str, content: str, metadata: Optional[Dict[str, Any]] = None):
+        """Add a message to the conversation history"""
+        entry = {
+            "role": role,
+            "content": content,
+            "page": self.current_page
+        }
+        if metadata:
+            entry.update(metadata)
+        self.conversation_history.append(entry)
+    
+    def get_conversation_context(self) -> str:
+        """Retrieve the conversation context as a formatted string"""
+        context = "Conversation History:\n"
+        for message in self.conversation_history:
+            context += f"Page {message.get('page', 'N/A')} - {message['role']}: {message['content']}\n"
+        return context.strip()
+    
+    def check_explanation_similarity(self, new_explanation: str, threshold: float = 0.8) -> bool:
+        """
+        Check if the new explanation is too similar to previous explanations
+        Returns True if the explanation is too similar, False otherwise
+        """
+        for prev_explanation in self.previous_explanations:
+            # Use difflib to calculate similarity ratio
+            similarity = difflib.SequenceMatcher(None, prev_explanation, new_explanation).ratio()
+            if similarity > threshold:
+                return True
+        return False
+    
     def parse_slides(self, content: str) -> List[SlideContent]:
         """Parse the slide content using the specific format"""
         pages = []
@@ -76,21 +115,81 @@ class AIProfessor:
             
         return pages
 
-    async def explain_slide(self, slide_content: str, current_page: int, previous_response: Optional[str] = None) -> Dict[str, Any]:
-        """Generate professor's explanation and actions for the current slide"""
+    async def evaluate_understanding(self, slide_content: str, student_response: str) -> Dict[str, Any]:
+        """Evaluate student's understanding and decide next steps"""
         try:
+            # Add student response to conversation history
+            self.add_to_conversation_history("Student", student_response)
+            
             messages = [
                 SystemMessage(content=f"""You are Professor {self.professor_name}. 
                 Teaching Style: {self.profile['style']}
                 Background: {self.profile['background']}
                 Verification Style: {self.profile['verification_style']}
                 
-                You must respond with a JSON object containing:
-                1. Your explanation of the slide content
-                2. A question to verify understanding
-                3. Decision to stay on current slide or move to next
+                Evaluate the student's response to the slide content and provide:
+                1. Feedback on their understanding
+                2. Recommendation to stay or move to next slide
+                3. Reasoning for your decision
                 
-                Previous response (if any): {previous_response}"""),
+                Previous Conversation Context:
+                {self.get_conversation_context()}
+                
+                Respond with a JSON object containing these details."""),
+                
+                HumanMessage(content=f"""Slide Content:
+                {slide_content}
+                
+                Student Response:
+                {student_response}
+                
+                Respond with this exact structure:
+                {{
+                    "understanding_assessment": {{
+                        "level": "low/medium/high",
+                        "feedback": "detailed explanation of student's understanding",
+                        "areas_to_improve": ["area 1", "area 2"]
+                    }},
+                    "recommended_action": "stay/next",
+                    "reasoning": "explanation of why to stay or move"
+                }}""")
+            ]
+            
+            response = await self.llm.ainvoke(messages)
+            understanding = json.loads(response.content)
+            
+            # Add professor's assessment to conversation history
+            self.add_to_conversation_history("Professor", json.dumps(understanding))
+            
+            return understanding
+            
+        except Exception as e:
+            print(f"Error evaluating student understanding: {e}")
+            raise
+
+    async def explain_slide(self, slide_content: str, current_page: int) -> Dict[str, Any]:
+        """Generate professor's explanation for the current slide"""
+        try:
+            # Prepare context with anti-repetition guidance
+            context_message = f"""You are Professor {self.professor_name}. 
+            Teaching Style: {self.profile['style']}
+            Background: {self.profile['background']}
+            Verification Style: {self.profile['verification_style']}
+            
+            IMPORTANT: Avoid repeating previous explanations. 
+            If your explanation is too similar to past explanations, provide a 
+            substantially different approach, such as:
+            - Using a completely different analogy
+            - Focusing on different aspects of the topic
+            - Changing the level of detail
+            - Providing a contrasting perspective
+            
+            Previous Conversation Context:
+            {self.get_conversation_context()}
+            """
+            
+            messages = [
+                SystemMessage(content=context_message),
                 
                 HumanMessage(content=f"""Current slide (Page {current_page}):
                 {slide_content}
@@ -103,7 +202,6 @@ class AIProfessor:
                         "key_points": ["point 1", "point 2"],
                         "verification_question": "question to check understanding"
                     }},
-                    "prof_action": "stay/next",
                     "teaching_notes": {{
                         "difficulty_level": "basic/intermediate/advanced",
                         "prerequisites": ["prerequisite 1", "prerequisite 2"],
@@ -113,31 +211,35 @@ class AIProfessor:
             ]
             
             response = await self.llm.ainvoke(messages)
-            return json.loads(response.content)
+            explanation = json.loads(response.content)
+            
+            # Check for explanation similarity and regenerate if too similar
+            explanation_text = explanation['prof_response']['explanation']
+            max_attempts = 3
+            attempt = 0
+            
+            while (self.check_explanation_similarity(explanation_text) and attempt < max_attempts):
+                # If too similar, regenerate with added guidance
+                context_message += "\nPrevious explanation was too similar. Generate a COMPLETELY DIFFERENT explanation."
+                messages[0] = SystemMessage(content=context_message)
+                
+                response = await self.llm.ainvoke(messages)
+                explanation = json.loads(response.content)
+                explanation_text = explanation['prof_response']['explanation']
+                attempt += 1
+            
+            # Store the explanation to prevent future repetitions
+            self.previous_explanations.append(explanation_text)
+            
+            # Add professor's explanation to conversation history
+            self.add_to_conversation_history("Professor", explanation_text, 
+                                             metadata={"explanation_type": "slide_explanation"})
+            
+            return explanation
             
         except Exception as e:
             print(f"Error generating professor response: {e}")
             raise
-
-    async def continue_interaction(self, response: Dict[str, Any]) -> bool:
-        """Ask user if they want to continue and get their next action"""
-        while True:
-            next_action = input("\nWhat would you like to do? (next/stay/end/help): ").strip().lower()
-            
-            if next_action == "help":
-                print("\nAvailable commands:")
-                print("- next: Move to the next slide")
-                print("- stay: Stay on current slide for more explanation")
-                print("- end: End the session")
-                print("- help: Show this help message")
-                continue
-                
-            if next_action in ["next", "stay", "end"]:
-                if next_action == "next":
-                    self.current_page += 1
-                return next_action != "end"
-            
-            print("\nInvalid command. Type 'help' for available commands.")
 
     async def process_interaction(self, filename: str, current_page: int) -> None:
         try:
@@ -149,6 +251,13 @@ class AIProfessor:
             slides = self.parse_slides(content)
             self.max_pages = len(slides)
             self.current_page = current_page
+            
+            # Reset conversation history for this session
+            self.conversation_history = []
+            self.previous_explanations = []
+            
+            # Add initial context to conversation history
+            self.add_to_conversation_history("System", f"Starting lecture with Professor {self.professor_name}")
             
             continue_session = True
             while continue_session:
@@ -165,7 +274,7 @@ class AIProfessor:
                 
                 # Print professor's response
                 print(f"\n=== Professor {self.professor_name}'s Response (Page {self.current_page}/{self.max_pages}) ===")
-                print(f"\n{response['prof_response']['greeting']}" if response['prof_response'].get('greeting') else "")
+                print(f"\n{response['prof_response'].get('greeting', '')}")
                 print(f"\nExplanation:\n{response['prof_response']['explanation']}")
                 
                 print("\nKey Points:")
@@ -174,16 +283,30 @@ class AIProfessor:
                 
                 print(f"\nTo verify your understanding:\n{response['prof_response']['verification_question']}")
                 
-                # Get student's response
-                answer = input("\nYour answer: ").strip()
+                # Get user's response
+                student_response = input("\nYour answer: ").strip()
                 
-                # Process student's response and get feedback
-                follow_up = await self.explain_slide(current_slide['content'], self.current_page, answer)
+                # Evaluate student's understanding
+                understanding = await self.evaluate_understanding(current_slide['content'], student_response)
                 
-                print(f"\nProfessor's feedback: {follow_up['prof_response']['explanation']}")
+                # Print professor's feedback
+                print("\nProfessor's Feedback:")
+                print(f"Understanding Level: {understanding['understanding_assessment']['level']}")
+                print(f"Detailed Feedback: {understanding['understanding_assessment']['feedback']}")
                 
-                # Ask user for next action
-                continue_session = await self.continue_interaction(follow_up)
+                print("\nAreas to Improve:")
+                for area in understanding['understanding_assessment']['areas_to_improve']:
+                    print(f"- {area}")
+                
+                print(f"\nRecommended Action: {understanding['recommended_action']}")
+                print(f"Reasoning: {understanding['reasoning']}")
+                
+                # Determine next action based on understanding assessment
+                if understanding['recommended_action'] == 'next':
+                    self.current_page += 1
+                
+                # Check if we've reached the last page
+                continue_session = self.current_page <= self.max_pages
                 
         except Exception as e:
             print(f"\nUnexpected error: {str(e)}")
