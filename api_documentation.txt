@@ -1,0 +1,359 @@
+API Documentation: AI Professor Backend
+
+Version: 0.1.0
+
+Base URL: http://localhost:8000 (or your deployment URL)
+
+1. Get Available Professors
+
+Endpoint: /professors
+
+Method: GET
+
+Description: Retrieves a list of available professor names that can be used for teaching.
+
+Request Body: None
+
+Response Body (Success - 200 OK):
+
+[
+  "Andrew NG",
+  "David Malan",
+  "John Guttag"
+]
+content_copy
+download
+Use code with caution.
+Json
+
+array of string: A list of professor names.
+
+Response Body (Error): (Highly unlikely for this endpoint, but included for completeness)
+
+500 Internal Server Error:
+
+{
+  "detail": "An unexpected error occurred."
+}
+content_copy
+download
+Use code with caution.
+Json
+
+2. Upload File and Initialize Conversation
+
+Endpoint: /upload
+
+Method: POST
+
+Description: Uploads a PDF or PPTX file, processes it, initializes a conversation with the selected AI professor, and returns the initial explanation.
+
+Request Body (Multipart Form Data):
+
+file: (File) The PDF or PPTX file to upload. Required.
+
+start_page: (integer) The page number to start the conversation on. Default: 1. Optional.
+
+professor_name: (string) The name of the AI professor to use. Must be one of the names returned by /professors. Default: "Andrew NG". Optional.
+
+Response Body (Success - 200 OK):
+
+{
+  "object_id": "a1b2c3d4-e5f6-7890-1234-567890abcdef",
+  "message": "Welcome! Let's begin with an introduction to linear regression...",
+  "audio_url": "/audio/f1a2b3c4-d5e6-7890-1234-567890abcdef.mp3",
+  "num_pages": 15
+}
+content_copy
+download
+Use code with caution.
+Json
+
+object_id: (string) A unique identifier for the uploaded file. This ID must be used in subsequent /chat requests.
+
+message: (string) The initial explanation from the AI professor.
+
+audio_url: (string) The URL to access the audio version of the message.
+
+num_pages: (integer) The total number of pages in the processed document.
+
+Response Body (Error):
+
+400 Bad Request: (Invalid file type)
+
+{
+  "detail": "Invalid file type. Only PDF files are supported."
+}
+content_copy
+download
+Use code with caution.
+Json
+
+400 Bad Request: (Invalid start page)
+
+{
+  "detail": "Invalid start_page"
+}
+content_copy
+download
+Use code with caution.
+Json
+
+422 Unprocessable Entity: (FastAPI validation error - e.g., missing required field)
+json { "detail": [ { "loc": [ "body", "file" ], "msg": "field required", "type": "value_error.missing" } ] }
+
+500 Internal Server Error: (Any other error during processing)
+
+{
+  "detail": "Error initializing conversation: ..."
+}
+content_copy
+download
+Use code with caution.
+Json
+
+3. Continue Chat Conversation
+
+Endpoint: /chat
+
+Method: POST
+
+Description: Sends a user message to the AI professor and receives a response, continuing the conversation.
+
+Request Body (JSON):
+
+{
+  "object_id": "a1b2c3d4-e5f6-7890-1234-567890abcdef",
+  "message": "Can you explain that in more detail?",
+  "current_page": 1
+}
+content_copy
+download
+Use code with caution.
+Json
+
+object_id: (string) The unique identifier for the file, obtained from the /upload response. Required.
+
+message: (string) The user's message to the AI professor. Required.
+
+current_page: (integer) The current page number the user is viewing. Required.
+
+Response Body (Success - 200 OK):
+
+{
+  "message": "Certainly! Let's break it down further...",
+  "current_page": 2,
+  "understanding_assessment": {
+    "level": "medium",
+    "feedback": "Good understanding of the basic concept, but needs more practice with...",
+    "areas_to_improve": ["Gradient Descent", "Feature Scaling"]
+  },
+  "audio_url": "/audio/98765432-10fe-dcba-9876-543210fedcba.mp3",
+  "end_of_conversation": false
+}
+content_copy
+download
+Use code with caution.
+Json
+{
+   "message": "End of conversation.",
+    "current_page": 5,
+    "understanding_assessment": {
+      "level": "high",
+      "feedback": "Excellent work! You've mastered the concepts.",
+      "areas_to_improve": []
+    },
+    "audio_url": "",
+    "end_of_conversation": true
+}
+content_copy
+download
+Use code with caution.
+Json
+
+message: (string) The AI professor's response.
+
+current_page: (integer) The updated current page number. This may stay the same or increment, depending on the AI's assessment.
+
+understanding_assessment: (object) An assessment of the student's understanding:
+
+level: (string) One of "low", "medium", or "high".
+
+feedback: (string) Detailed feedback on the student's understanding.
+
+areas_to_improve: (array of string) A list of areas where the student could improve.
+
+audio_url: (string) The URL to access the audio version of the message.
+
+end_of_conversation: (boolean) true if there are no more pages. false otherwise.
+
+Response Body (Error):
+
+400 Bad Request: (Invalid current_page)
+
+{
+   "detail": "Invalid current_page"
+}
+content_copy
+download
+Use code with caution.
+Json
+
+404 Not Found: (Invalid object_id)
+
+{
+  "detail": "File not found."
+}
+content_copy
+download
+Use code with caution.
+Json
+
+400 Bad request: (Slide not found)
+
+{
+     "detail": "Slide 5 not found."
+ }
+content_copy
+download
+Use code with caution.
+Json
+
+500 Internal Server Error: (Any other error during processing)
+
+{
+  "detail": "Error processing chat: ..."
+}
+content_copy
+download
+Use code with caution.
+Json
+
+4. Get Audio
+
+Endpoint: /audio/{audio_filename}
+
+Method: GET
+
+Description: Retrieves a previously generated audio file (MP3).
+
+Parameters:
+
+audio_filename: (string, path parameter) The filename of the audio file, as provided in the audio_url from /upload or /chat.
+
+Request Body: None
+
+Response Body (Success - 200 OK):
+
+The audio file (MP3) itself, streamed as audio/mpeg.
+
+Response Body (Error):
+
+404 Not Found: (Audio file not found)
+
+{
+    "detail": "Audio file not found"
+ }
+content_copy
+download
+Use code with caution.
+Json
+
+Example Usage (Frontend - JavaScript with fetch):
+
+// 1. Upload a file
+async function uploadFile(file, startPage, professorName) {
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('start_page', startPage);
+  formData.append('professor_name', professorName);
+
+  const response = await fetch('/upload', {
+    method: 'POST',
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.detail); // Or handle more gracefully
+  }
+
+  return await response.json();
+}
+
+// 2. Continue the conversation
+async function sendChatMessage(objectId, message, currentPage) {
+  const response = await fetch('/chat', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      object_id: objectId,
+      message: message,
+      current_page: currentPage,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.detail);
+  }
+
+  return await response.json();
+}
+
+// 3. Get audio (usually handled by <audio> tag)
+// <audio src={audioUrl} controls />
+
+// Example workflow:
+async function startConversation() {
+    try {
+        const fileInput = document.getElementById('fileInput');
+        const file = fileInput.files[0];
+        const startPage = 1;
+        const professorName = "Andrew NG";
+
+        const uploadResponse = await uploadFile(file, startPage, professorName);
+        console.log("Upload response:", uploadResponse);
+
+        const objectId = uploadResponse.object_id;
+        let currentPage = startPage;
+
+        // Initial message display
+        displayMessage(uploadResponse.message);
+        playAudio(uploadResponse.audio_url);
+
+        // Example chat interaction loop (simplified)
+        while (true) { // Use end_of_conversation flag in real app
+            const userMessage = prompt("Enter your message:");
+            const chatResponse = await sendChatMessage(objectId, userMessage, currentPage);
+            console.log("Chat response:", chatResponse);
+
+            displayMessage(chatResponse.message); // Display AI response
+            playAudio(chatResponse.audio_url);
+            currentPage = chatResponse.current_page;
+            if(chatResponse.end_of_conversation){
+                break; // exit the chat.
+            }
+        }
+
+    } catch (error) {
+        console.error("Error:", error);
+        alert("An error occurred: " + error.message);
+    }
+}
+function displayMessage(message){
+    // logic to display message in UI
+}
+
+function playAudio(audioUrl){
+    const audio = new Audio(audioUrl);
+    audio.play();
+}
+content_copy
+download
+Use code with caution.
+JavaScript
+
+This documentation provides all the necessary information for your frontend team to interact with your backend API. They have clear descriptions of each endpoint, the expected request formats, the possible response formats (both success and error), and example usage. The example JavaScript code shows how to use fetch to make the API calls. This is much better than just pointing them to /docs because it's tailored to their needs and includes example usage.
