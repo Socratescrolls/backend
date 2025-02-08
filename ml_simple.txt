@@ -6,4 +6,20 @@ Machine Learning (ML) is a branch of artificial intelligence that enables comput
 
 Linear regression is a **supervised learning algorithm** that models the relationship between a dependent variable (target) and one or more independent variables (features) using a straight line.
 
+Page 2:
+Text content:
+
+# Understanding Linear Regression
+Linear regression assumes a linear relationship between the input variable (X) and the output variable (Y). The equation for a simple linear regression model is:
+
+Y = mX + b
+
+where:
+- Y is the predicted output,
+- X is the input feature,
+- m is the slope of the line (coefficient), and
+- b is the y-intercept.
+
+The goal is to find the best-fitting line that minimizes the error between predicted and actual values.
+
 ---

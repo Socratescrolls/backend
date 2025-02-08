@@ -194,7 +194,7 @@ class AIProfessor:
 
     async def explain_slide(self, slide_content: str, current_page: int) -> Dict[str, Any]:
         """Generate professor's explanation for the current slide"""
-        try:
+        if 1:
             context_message = f"""You are Professor {self.professor_name}. 
             Teaching Style: {self.profile['style']}
             Background: {self.profile['background']}
@@ -263,9 +263,9 @@ class AIProfessor:
             
             return explanation
             
-        except Exception as e:
-            logger.error(f"Error generating explanation: {str(e)}")
-            raise
+        # except Exception as e:
+        #     logger.error(f"Error generating explanation: {str(e)}")
+        #     raise
 
     async def generate_session_report(self) -> None:
         """Generate and display the final session report"""
