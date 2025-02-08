@@ -7,6 +7,9 @@ import json
 import asyncio
 import difflib
 
+# Import the Teaching Assistant
+from ai_teaching_assistant import AITeachingAssistant, run_quiz_interaction
+
 def setup_environment():
     """Setup and validate environment variables"""
     load_dotenv()
@@ -56,6 +59,9 @@ class AIProfessor:
         
         # Track previous explanations to prevent repetition
         self.previous_explanations: List[str] = []
+        
+        # Initialize Teaching Assistant
+        self.teaching_assistant = AITeachingAssistant(professor_name)
     
     def add_to_conversation_history(self, role: str, content: str, metadata: Optional[Dict[str, Any]] = None):
         """Add a message to the conversation history"""
@@ -300,6 +306,13 @@ class AIProfessor:
                 
                 print(f"\nRecommended Action: {understanding['recommended_action']}")
                 print(f"Reasoning: {understanding['reasoning']}")
+                
+                # Check if a quiz should be triggered
+                quiz_result = await run_quiz_interaction(
+                    self.teaching_assistant, 
+                    self, 
+                    current_slide
+                )
                 
                 # Determine next action based on understanding assessment
                 if understanding['recommended_action'] == 'next':
