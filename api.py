@@ -3,6 +3,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Optional
 
+from extract_info_from_upload import extract_info_from_upload
+# Usage example: extract_info_from_upload('example.pptx', 'output.txt')
+
 # Create FastAPI app instance
 app = FastAPI(
     title="Your Project API",
