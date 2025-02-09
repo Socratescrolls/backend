@@ -1,15 +1,18 @@
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Depends
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse, FileResponse
+from fastapi.responses import StreamingResponse, FileResponse, JSONResponse
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 import uuid
 import os
 import io
-from gtts import gTTS
 from main import AIProfessor, PROFESSOR_PROFILES, SlideContent
 from extract_info_from_upload import process_document
 from ai_teaching_assistant import AITeachingAssistant
+from openai import OpenAI
+from pathlib import Path
+import time
+from fastapi.staticfiles import StaticFiles
 
 # Create FastAPI app instance
 app = FastAPI(
@@ -34,6 +37,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["Content-Disposition"]  # Important for audio files
 )
 
 # --- Data Models ---
@@ -85,6 +89,18 @@ class ChatResponse(BaseModel):
 # --- In-Memory "Database" ---
 file_data: Dict[str, Dict[str, Any]] = {}
 
+# Initialize OpenAI client
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+# Create audio directory if it doesn't exist
+AUDIO_DIR = Path("audio")
+AUDIO_DIR.mkdir(exist_ok=True)
+
+class TTSRequest(BaseModel):
+    text: str
+    voice: str = "alloy"  # OpenAI voices: alloy, echo, fable, onyx, nova, shimmer
+    model: str = "tts-1"
+
 # --- Helper Functions ---
 async def get_ai_professor(professor_name: str) -> AIProfessor:
     """Dependency to get an AIProfessor instance."""
@@ -100,19 +116,20 @@ def save_uploaded_file(file: UploadFile, object_id: str):
     return file_path
 
 async def convert_text_to_speech_and_get_url(text: str) -> str:
-    """Converts text to speech, saves audio, and returns URL."""
+    """Converts text to speech using OpenAI, saves audio, and returns URL."""
     try:
-        tts = gTTS(text)
-        audio_stream = io.BytesIO()
-        tts.save(audio_stream)
-        audio_stream.seek(0)
-
         audio_filename = f"{uuid.uuid4()}.mp3"
-        audio_filepath = os.path.join("audio", audio_filename)
-        os.makedirs("audio", exist_ok=True)
+        audio_path = AUDIO_DIR / audio_filename
 
-        with open(audio_filepath, "wb") as f:
-            f.write(audio_stream.read())
+        # Create speech using OpenAI API
+        response = client.audio.speech.create(
+            model="tts-1",
+            voice="alloy",
+            input=text
+        )
+
+        # Save audio file
+        response.stream_to_file(str(audio_path))
         return f"/audio/{audio_filename}"
     except Exception as e:
         print(f"Text-to-speech conversion failed: {e}")
@@ -181,6 +198,36 @@ async def upload_file(
         print(f"Error during upload/initialization: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.post("/api/tts")
+async def text_to_speech(request: TTSRequest):
+    try:
+        audio_filename = f"{uuid.uuid4()}.mp3"
+        audio_path = AUDIO_DIR / audio_filename
+
+        # Create speech using OpenAI API
+        response = client.audio.speech.create(
+            model=request.model,
+            voice=request.voice,
+            input=request.text
+        )
+
+        # Save audio file
+        response.stream_to_file(str(audio_path))
+
+        return {
+            "audio_url": f"/audio/{audio_filename}",
+            "message": "Audio generated successfully"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/audio/{filename}")
+async def get_audio(filename: str):
+    audio_path = AUDIO_DIR / filename
+    if not audio_path.exists():
+        return {"error": "Audio file not found"}
+    return FileResponse(audio_path)
+
 @app.post("/chat", response_model=ChatResponse)
 async def continue_chat(request: ChatRequest):
     """Continues the chat conversation."""
@@ -235,6 +282,8 @@ async def continue_chat(request: ChatRequest):
             raise HTTPException(status_code=400, detail=f"Slide {ai_professor.current_page} not found.")
         
         response = await ai_professor.explain_slide(current_slide['content'], ai_professor.current_page)
+
+        # Generate audio for the assistant's response
         audio_url = await convert_text_to_speech_and_get_url(response['prof_response']['explanation'])
 
         file_data[request.object_id]["conversation_history"] = ai_professor.conversation_history
@@ -245,11 +294,11 @@ async def continue_chat(request: ChatRequest):
             current_page=ai_professor.current_page,
             understanding_assessment=understanding,
             audio_url=audio_url,
-            verification_question=response['prof_response']['verification_question'],
-            key_points=response['prof_response']['key_points']
+            verification_question=response['prof_response'].get('verification_question', ''),
+            key_points=response['prof_response'].get('key_points', [])
         )
     except Exception as e:
-        print(f"Error during chat interaction: {e}")
+        print(f"Error in chat: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/check-quiz-readiness/{object_id}/{current_page}", response_model=Dict[str, Any])
@@ -369,11 +418,23 @@ async def evaluate_quiz(quiz_answers: QuizAnswers):
         print(f"Error evaluating quiz: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/audio/{audio_filename}")
-async def get_audio(audio_filename: str):
-    """Serves an audio file."""
-    audio_filepath = os.path.join("audio", audio_filename)
-    if not os.path.exists(audio_filepath):
-        raise HTTPException(status_code=404, detail="Audio file not found")
+# Mount the audio directory to serve files
+app.mount("/audio", StaticFiles(directory="audio"), name="audio")
 
-    return FileResponse(audio_filepath, media_type="audio/mpeg")
+# Add cleanup task for old audio files
+def cleanup_old_audio_files():
+    """Remove audio files older than 24 hours"""
+    current_time = time.time()
+    for audio_file in AUDIO_DIR.glob("*.mp3"):
+        if current_time - audio_file.stat().st_mtime > 86400:  # 24 hours
+            audio_file.unlink()
+
+@app.on_event("startup")
+async def startup_event():
+    # Create audio directory
+    AUDIO_DIR.mkdir(exist_ok=True)
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    # Cleanup old audio files
+    cleanup_old_audio_files()
