@@ -1,4 +1,3 @@
-# extract_info_from_upload.py (No Changes needed)
 import os
 from dotenv import load_dotenv
 from pptx import Presentation
@@ -175,8 +174,11 @@ def extract_ppt_content(ppt_path, client):
 
 def save_to_file(contents, output_path):
     """
-    Save the extracted content to a text file.
+    Save the extracted content to a file.
     """
+    # Ensure the output directory exists
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    
     with open(output_path, 'w', encoding='utf-8') as f:
         f.write('\n\n'.join(contents))
 
@@ -218,6 +220,8 @@ def extract_info_from_upload(input_file, output_path):
 
 # # Configuration
 # input_file = "DeepSeek_R1.pdf"  # Replace with your file path (PDF or PPT/PPTX)
-# output_path = input_file.split(".")[0] + ".txt"
+# output_directory = "io_bytes"
+# output_filename = os.path.splitext(os.path.basename(input_file))[0] + ".io"
+# output_path = os.path.join(output_directory, output_filename)
 
 # extract_info_from_upload(input_file, output_path)
