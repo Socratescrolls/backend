@@ -24,28 +24,24 @@ class AITeachingAssistant:
         self.quiz_threshold = 0.7  # 70% understanding triggers quiz
     
     async def assess_concept_understanding(self, 
-                                           conversation_history: List[Dict[str, Any]], 
-                                           current_slide_content: str) -> Dict[str, Any]:
+                                        conversation_history: List[Dict[str, Any]], 
+                                        current_slide_content: str) -> Dict[str, Any]:
         """
         Assess the student's understanding of the current concept
-        
-        Args:
-            conversation_history (List[Dict]): Full conversation history
-            current_slide_content (str): Content of the current slide
-        
-        Returns:
-            Dict containing understanding assessment
         """
         try:
             messages = [
                 SystemMessage(content=f"""You are an AI Teaching Assistant monitoring student understanding.
                 
+                IMPORTANT: 
+                - If ANY concept understanding is 'high' or 'medium', recommend triggering a quiz
+                - This helps verify readiness to move forward
+                - Students with medium understanding should get a chance to prove their knowledge
+                
                 Carefully analyze the conversation history and current slide content to:
                 1. Identify the key concepts being discussed
                 2. Assess the student's level of understanding
-                3. Determine if a quiz should be triggered
-                
-                Provide a detailed assessment in JSON format."""),
+                3. Determine if a quiz should be triggered"""),
                 
                 HumanMessage(content=f"""Conversation History:
                 {json.dumps(conversation_history, indent=2)}
@@ -68,7 +64,14 @@ class AITeachingAssistant:
             ]
             
             response = await self.llm.ainvoke(messages)
-            return json.loads(response.content)
+            assessment = json.loads(response.content)
+            
+            # Trigger quiz for medium or high understanding
+            if any(level in ["high", "medium"] for level in assessment['understanding_levels'].values()):
+                assessment['quiz_recommendation']['trigger_quiz'] = True
+                assessment['quiz_recommendation']['reasoning'] = "Understanding level sufficient for quiz assessment"
+                
+            return assessment
         
         except Exception as e:
             print(f"Error assessing concept understanding: {e}")
@@ -80,6 +83,7 @@ class AITeachingAssistant:
                     "reasoning": "Error in assessment"
                 }
             }
+
     
     async def generate_mcq_quiz(self, slide_content: str, key_concepts: List[str]) -> Dict[str, Any]:
         """
@@ -222,17 +226,7 @@ class AITeachingAssistant:
         return recommendations.get(performance_level, "Unable to generate specific recommendation.")
 
 async def run_quiz_interaction(teaching_assistant, professor, current_slide):
-    """
-    Run the quiz interaction process
-    
-    Args:
-        teaching_assistant (AITeachingAssistant): The teaching assistant
-        professor (AIProfessor): The professor
-        current_slide (Dict): Current slide being discussed
-    
-    Returns:
-        Dict: Quiz performance and recommendations
-    """
+    """Run the quiz interaction process"""
     try:
         # Assess concept understanding
         understanding_assessment = await teaching_assistant.assess_concept_understanding(
@@ -241,15 +235,16 @@ async def run_quiz_interaction(teaching_assistant, professor, current_slide):
         )
         
         # Check if quiz should be triggered based on understanding level
-        is_high_understanding = any(
-            level == "high" for level in understanding_assessment['understanding_levels'].values()
+        understanding_sufficient = any(
+            level in ["high", "medium"] 
+            for level in understanding_assessment['understanding_levels'].values()
         )
         
-        # Check if quiz recommendation is triggered and understanding is high
-        if (understanding_assessment['quiz_recommendation']['trigger_quiz'] and is_high_understanding):
+        # Check if quiz recommendation is triggered and understanding is sufficient
+        if (understanding_assessment['quiz_recommendation']['trigger_quiz'] and understanding_sufficient):
             print("\n--- Quiz Time! ---")
             
-            # Generate MCQ Quiz
+            # Generate and run quiz...
             quiz = await teaching_assistant.generate_mcq_quiz(
                 current_slide['content'], 
                 understanding_assessment['key_concepts']
@@ -276,25 +271,21 @@ async def run_quiz_interaction(teaching_assistant, professor, current_slide):
             
             # Print Quiz Results
             print("\n--- Quiz Results ---")
-            print(f"Total Questions: {performance['total_questions']}")
-            print(f"Correct Answers: {performance['correct_answers']}")
             print(f"Score: {performance['score_percentage']:.2f}%")
             print(f"Performance Level: {performance['performance_level']}")
             
-            # Print Detailed Results
-            print("\nDetailed Results:")
-            for result in performance['detailed_results']:
-                status = "✓" if result['is_correct'] else "✗"
-                print(f"Q{result['question_id']}: {status} (Correct: {result['correct_answer']})")
-                print(f"Explanation: {result['explanation']}\n")
+            # Determine if we can move to next slide based on performance
+            can_move_forward = performance['score_percentage'] >= 70  # 70% threshold
             
-            # Recommendation for Professor
-            print("\nRecommendation for Professor:")
-            print(performance['recommendation_for_professor'])
+            if can_move_forward:
+                print("\nExcellent work! You're ready to move to the next slide.")
+                return performance
+            else:
+                print("\nLet's review this material a bit more before moving on.")
+                return None
             
-            return performance
         else:
-            print("\nNot ready for quiz. Continue exploring the concept.")
+            print("\nNot ready for quiz yet. Continue exploring the concept.")
             return None
     
     except Exception as e:

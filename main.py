@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 def setup_environment():
     """Setup and validate environment variables"""
     load_dotenv()
-    os.environ["OPENAI_API_KEY"] = os.getenv("OPENAI_API_KEY")
+    os.environ["OPENAI_API_KEY"] = os.getenv("OPENAI_API_KEY2")
 
 PROFESSOR_PROFILES = {
     "Andrew NG": """You are an AI assistant emulating the teaching style of Andrew Ng, a machine learning expert, teaching a student one-on-one. Your primary goal is to help students understand complex machine learning concepts intuitively and practically, equipping them to build and debug their own applications.
@@ -190,19 +190,17 @@ class AIProfessor:
 
     async def explain_slide(self, slide_content: str, current_page: int) -> Dict[str, Any]:
         """Generate professor's explanation for the current slide"""
-        if 1:
+        try:
             context_message = f"""You are Professor {self.professor_name}. 
-            Teaching Style: {self.profile['style']}
-            Background: {self.profile['background']}
-            Verification Style: {self.profile['verification_style']}
+
+            Teaching Profile:
+            {self.profile}
             
-            IMPORTANT: Avoid repeating previous explanations. 
-            If your explanation is too similar to past explanations, provide a 
-            substantially different approach, such as:
-            - Using a completely different analogy
-            - Focusing on different aspects of the topic
-            - Changing the level of detail
-            - Providing a contrasting perspective
+            IMPORTANT: 
+            - Avoid repeating previous explanations
+            - Use plain text for mathematical expressions (no LaTeX)
+            - Write equations in simple text format (e.g., "y = a + bx" instead of "\\( y = \\alpha + \\beta x \\)")
+            - Ensure all content is valid JSON without escape characters
             
             Previous Conversation Context:
             {self.get_conversation_context()}
@@ -214,7 +212,7 @@ class AIProfessor:
                 HumanMessage(content=f"""Current slide (Page {current_page}):
                 {slide_content}
                 
-                Respond with this exact structure:
+                You MUST respond with this EXACT structure, using plain text for all mathematical expressions:
                 {{
                     "prof_response": {{
                         "greeting": "optional greeting",
@@ -231,7 +229,46 @@ class AIProfessor:
             ]
             
             response = await self.llm.ainvoke(messages)
-            explanation = json.loads(response.content)
+            
+            # Clean the response content
+            cleaned_content = (
+                response.content
+                .replace('\\(', '')
+                .replace('\\)', '')
+                .replace('\\theta', 'theta')
+                .replace('\\alpha', 'alpha')
+                .replace('\\beta', 'beta')
+                .replace('\\', '')
+            )
+            
+            # Remove any remaining control characters
+            cleaned_content = ''.join(char for char in cleaned_content if ord(char) >= 32 or char in '\n\r\t')
+            
+            explanation = json.loads(cleaned_content)
+            
+            # Validate required fields
+            required_fields = {
+                'prof_response': ['greeting', 'explanation', 'key_points', 'verification_question'],
+                'teaching_notes': ['difficulty_level', 'prerequisites', 'suggested_exercises']
+            }
+            
+            for section, fields in required_fields.items():
+                if section not in explanation:
+                    explanation[section] = {}
+                for field in fields:
+                    if field not in explanation[section]:
+                        if field == 'greeting':
+                            explanation[section][field] = "Hi! Let's explore this concept."
+                        elif field == 'verification_question':
+                            explanation[section][field] = "Can you explain the key points we just discussed?"
+                        elif field == 'key_points':
+                            explanation[section][field] = ["Key concept discussed"]
+                        elif field == 'prerequisites':
+                            explanation[section][field] = ["Basic understanding of the subject"]
+                        elif field == 'suggested_exercises':
+                            explanation[section][field] = ["Practice with examples"]
+                        else:
+                            explanation[section][field] = "Not specified"
             
             explanation_text = explanation['prof_response']['explanation']
             max_attempts = 3
@@ -242,7 +279,20 @@ class AIProfessor:
                 messages[0] = SystemMessage(content=context_message)
                 
                 response = await self.llm.ainvoke(messages)
-                explanation = json.loads(response.content)
+                cleaned_content = ''.join(char for char in response.content if ord(char) >= 32 or char in '\n\r\t')
+                explanation = json.loads(cleaned_content)
+                
+                # Validate fields again after retry
+                for section, fields in required_fields.items():
+                    if section not in explanation:
+                        explanation[section] = {}
+                    for field in fields:
+                        if field not in explanation[section]:
+                            if field == 'verification_question':
+                                explanation[section][field] = "Can you explain the key points we just discussed?"
+                            else:
+                                explanation[section][field] = "Not specified"
+                
                 explanation_text = explanation['prof_response']['explanation']
                 attempt += 1
             
@@ -259,9 +309,12 @@ class AIProfessor:
             
             return explanation
             
-        # except Exception as e:
-        #     logger.error(f"Error generating explanation: {str(e)}")
-        #     raise
+        except json.JSONDecodeError as e:
+            logger.error(f"JSON parsing error: {str(e)}\nResponse content: {response.content}")
+            raise
+        except Exception as e:
+            logger.error(f"Error generating explanation: {str(e)}")
+            raise
 
     async def generate_session_report(self) -> None:
         """Generate and display the final session report"""
