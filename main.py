@@ -38,7 +38,10 @@ class SlideContent(TypedDict):
     content: str
 
 class AIProfessor:
-    def __init__(self, professor_name: str):
+    def __init__(self, name: str):
+        self.name = name
+        self.teaching_assistant = None  # Initialize the teaching assistant
+        self.conversation_history = []
         # Load environment variables
         load_dotenv()
         
@@ -48,19 +51,16 @@ class AIProfessor:
             model="gpt-4o-mini",
             streaming=False
         )
-        self.professor_name = professor_name
-        self.profile = PROFESSOR_PROFILES[professor_name]
+        self.profile = PROFESSOR_PROFILES[name]
         self.current_page = 1
         self.max_pages = 1
         
-        # Track conversation history manually
-        self.conversation_history: List[Dict[str, Any]] = []
-        
         # Track previous explanations to prevent repetition
         self.previous_explanations: List[str] = []
-        
-        # Initialize Teaching Assistant
-        self.teaching_assistant = AITeachingAssistant(professor_name)
+    
+    async def initialize_teaching_assistant(self, document_text: str):
+        # Create and initialize the teaching assistant
+        self.teaching_assistant = AITeachingAssistant(self.name)
     
     def add_to_conversation_history(self, role: str, content: str, metadata: Optional[Dict[str, Any]] = None):
         """Add a message to the conversation history"""
@@ -256,7 +256,7 @@ class AIProfessor:
             self.previous_explanations = []
             
             # Add initial context to conversation history
-            self.add_to_conversation_history("System", f"Starting lecture with Professor {self.professor_name}")
+            self.add_to_conversation_history("System", f"Starting lecture with Professor {self.name}")
             
             continue_session = True
             while continue_session:
@@ -272,7 +272,7 @@ class AIProfessor:
                 response = await self.explain_slide(current_slide['content'], self.current_page)
                 
                 # Print professor's response
-                print(f"\n=== Professor {self.professor_name}'s Response (Page {self.current_page}/{self.max_pages}) ===")
+                print(f"\n=== Professor {self.name}'s Response (Page {self.current_page}/{self.max_pages}) ===")
                 print(f"\n{response['prof_response'].get('greeting', '')}")
                 print(f"\nExplanation:\n{response['prof_response']['explanation']}")
                 
@@ -317,6 +317,16 @@ class AIProfessor:
         except Exception as e:
             print(f"\nUnexpected error: {str(e)}")
             raise
+
+    async def chat(self, message: str, current_page: int):
+        if not self.teaching_assistant:
+            raise ValueError("Teaching assistant not initialized")
+            
+        response = await self.teaching_assistant.chat(
+            message=message,
+            current_page=current_page
+        )
+        return response
 
 async def main():
     try:
