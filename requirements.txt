@@ -1,8 +1,10 @@
-fastapi==0.109.0
-uvicorn==0.24.0
-pydantic==2.6.1
-python-dotenv==1.0.0
-python-multipart==0.0.9
+fastapi
+uvicorn
+pydantic
+python-dotenv
+python-multipart
 langchain-openai
 langchain
 gtts
+python-pptx
+PyMuPDF
