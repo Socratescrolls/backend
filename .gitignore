@@ -23,6 +23,9 @@ processed/
 output/
 temp/
 
+io_bytes/
+
+
 # Binary/IO files
 *.io
 *.bytes
