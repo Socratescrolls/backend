@@ -7,8 +7,9 @@ import uuid
 import os
 import io
 from gtts import gTTS
-from main2 import AIProfessor, PROFESSOR_PROFILES, SlideContent
+from main import AIProfessor, PROFESSOR_PROFILES, SlideContent
 from extract_info_from_upload import process_document
+from ai_teaching_assistant import AITeachingAssistant
 
 # Create FastAPI app instance
 app = FastAPI(
@@ -197,6 +198,9 @@ async def continue_chat(request: ChatRequest):
         ai_professor.conversation_history = file_info["conversation_history"]
         ai_professor.previous_explanations = file_info["previous_explanations"]
         ai_professor.current_page = request.current_page
+
+        # Ensure teaching assistant is initialized
+        await ai_professor.ensure_teaching_assistant()
 
         slides = ai_professor.parse_slides(content)
 

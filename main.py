@@ -39,9 +39,6 @@ class SlideContent(TypedDict):
 
 class AIProfessor:
     def __init__(self, name: str):
-        self.name = name
-        self.teaching_assistant = None  # Initialize the teaching assistant
-        self.conversation_history = []
         # Load environment variables
         load_dotenv()
         
@@ -51,16 +48,23 @@ class AIProfessor:
             model="gpt-4o-mini",
             streaming=False
         )
+        
+        # Basic attributes
+        self.name = name
         self.profile = PROFESSOR_PROFILES[name]
         self.current_page = 1
         self.max_pages = 1
         
-        # Track previous explanations to prevent repetition
+        # Initialize conversation history and explanations
+        self.conversation_history: List[Dict[str, Any]] = []
         self.previous_explanations: List[str] = []
-    
-    async def initialize_teaching_assistant(self, document_text: str):
-        # Create and initialize the teaching assistant
-        self.teaching_assistant = AITeachingAssistant(self.name)
+        
+        # Initialize teaching assistant
+        try:
+            self.teaching_assistant = AITeachingAssistant(name)
+        except Exception as e:
+            print(f"Error initializing teaching assistant: {e}")
+            self.teaching_assistant = None
     
     def add_to_conversation_history(self, role: str, content: str, metadata: Optional[Dict[str, Any]] = None):
         """Add a message to the conversation history"""
@@ -120,9 +124,18 @@ class AIProfessor:
             
         return pages
 
+    async def ensure_teaching_assistant(self):
+        """Ensure teaching assistant is initialized"""
+        if self.teaching_assistant is None:
+            self.teaching_assistant = AITeachingAssistant(self.name)
+        return self.teaching_assistant
+
     async def evaluate_understanding(self, slide_content: str, student_response: str) -> Dict[str, Any]:
         """Evaluate student's understanding and decide next steps"""
         try:
+            # Ensure teaching assistant is available
+            teaching_assistant = await self.ensure_teaching_assistant()
+            
             # Add student response to conversation history
             self.add_to_conversation_history("Student", student_response)
             
